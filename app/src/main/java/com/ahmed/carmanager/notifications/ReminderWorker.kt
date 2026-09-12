@@ -182,6 +182,15 @@ class ReminderWorker(
     }
 
     private fun postNotification(payload: NotificationPayload) {
+        // Keep the permission check immediately next to notify(). Besides guarding against a user
+        // revoking permission between worker start and delivery, this makes the contract explicit to
+        // Android Lint instead of relying on inter-procedural inference from doWork().
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
         val manager = NotificationManagerCompat.from(applicationContext)
         val channelId = if (payload.urgent) OVERDUE_CHANNEL_ID else UPCOMING_CHANNEL_ID
         val pendingIntent = PendingIntent.getActivity(
@@ -209,6 +218,12 @@ class ReminderWorker(
     }
 
     private fun postSummary(alerts: List<NotificationPayload>) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
+            ContextCompat.checkSelfPermission(applicationContext, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED
+        ) {
+            return
+        }
+
         val urgentCount = alerts.count { it.urgent }
         val channelId = if (urgentCount > 0) OVERDUE_CHANNEL_ID else UPCOMING_CHANNEL_ID
         val summaryText = if (urgentCount > 0) {
