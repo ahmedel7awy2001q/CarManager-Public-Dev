@@ -166,9 +166,11 @@ internal object ExpandedPartsPriceEngine {
                         fitmentNote = assessment.reason
                     )
                 } else {
-                    // The store was searched with the saved vehicle identity, but the returned title
-                    // does not contain enough vehicle/generation evidence. Keep the *price discovery*
-                    // result and visibly cap confidence instead of pretending fitment is verified.
+                    // Keep generic part-only discovery results, but never show a product that
+                    // explicitly names another car brand (for example Jeep/Honda for a Renault).
+                    if (ForeignVehicleTitleGuard.isClearlyForeign(vehicle, identity, strictVehicleOffer.title)) {
+                        return@mapNotNull null
+                    }
                     val discoveryConfidence = min(55, relevance)
                     strictVehicleOffer.copy(
                         fitmentConfidence = discoveryConfidence,
