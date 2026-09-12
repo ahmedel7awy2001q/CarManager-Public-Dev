@@ -43,16 +43,16 @@ internal object StorefrontVehicleAliasCatalog {
             }
         }
 
-        // Auto Spare currently lists the Egyptian second-generation Logan as "نيو لوجان"
-        // while many owners save it simply as Renault Logan. Keep both names searchable.
+        // Auto Spare currently exposes the Renault model family under both "لوجان" and
+        // "نيو لوجان". Keep both store names searchable without changing the user's saved model.
         if ((brand.contains("renault") || brand.contains("رينو")) &&
             (model.contains("logan") || model.contains("لوجان"))
         ) {
-            if (y in 2015..2022) {
-                add("Renault New Logan", years = 2015..2022, confidence = 98, evidence = "Auto Spare Egyptian catalog name")
-                add("رينو نيو لوجان", years = 2015..2022, confidence = 98, evidence = "Auto Spare Egyptian catalog name")
-                add("New Logan", years = 2015..2022, confidence = 96, evidence = "Egyptian market/store label")
-                add("نيو لوجان", years = 2015..2022, confidence = 96, evidence = "Egyptian market/store label")
+            if (y in 2012..2022) {
+                add("Renault New Logan", years = 2012..2022, confidence = 98, evidence = "Auto Spare Egyptian catalog name")
+                add("رينو نيو لوجان", years = 2012..2022, confidence = 98, evidence = "Auto Spare Egyptian catalog name")
+                add("New Logan", years = 2012..2022, confidence = 96, evidence = "Egyptian market/store label")
+                add("نيو لوجان", years = 2012..2022, confidence = 96, evidence = "Egyptian market/store label")
             }
             add("Renault Logan", years = 2004..2027, confidence = 100, evidence = "saved model family")
             add("رينو لوجان", years = 2004..2027, confidence = 96, evidence = "Arabic store/model family label")
@@ -76,12 +76,12 @@ internal object StorefrontVehicleAliasCatalog {
             if ((brand.contains("renault") || brand.contains("رينو")) &&
                 (model.contains("logan") || model.contains("لوجان"))
             ) {
-                if (vehicle.year in 2015..2022) {
+                if (vehicle.year in 2012..2022) {
                     out += StorefrontVehicleAliasProfile(
                         providerId = providerId,
                         brandAliases = listOf("رينو", "Renault"),
                         modelAliases = listOf("نيو لوجان", "New Logan", "لوجان", "Logan"),
-                        compatibleYears = 2015..2022,
+                        compatibleYears = 2012..2022,
                         confidence = 100
                     )
                 } else {
@@ -95,8 +95,8 @@ internal object StorefrontVehicleAliasCatalog {
                 }
             }
 
-            // Preserve the already-supported Cerato routes while allowing the same resolver to
-            // discover them from Auto Spare's live brand/model pages instead of hard-coded URLs.
+            // Preserve the already-supported Cerato routes while allowing the resolver to discover
+            // them from Auto Spare's live brand/model pages instead of one hard-coded URL.
             if ((brand.contains("kia") || brand.contains("كيا")) &&
                 (model.contains("cerato") || model.contains("سيراتو") || model.contains("k3"))
             ) {
@@ -119,7 +119,7 @@ internal object StorefrontVehicleAliasCatalog {
         if (out.isEmpty()) {
             out += StorefrontVehicleAliasProfile(
                 providerId = providerId,
-                brandAliases = listOf(vehicle.brand),
+                brandAliases = egyptianBrandAliases(vehicle.brand),
                 modelAliases = listOfNotNull(
                     vehicle.model.takeIf { it.isNotBlank() },
                     vehicle.displayName?.takeIf { it.isNotBlank() }
@@ -132,7 +132,7 @@ internal object StorefrontVehicleAliasCatalog {
         return out
     }
 
-    /** Common Arabic brand spellings used by Egyptian storefronts. */
+    /** Common Arabic/English brand spellings used by Egyptian storefronts. */
     fun egyptianBrandAliases(brand: String): List<String> {
         val key = normalizeVehicleText(brand)
         val aliases = when {
