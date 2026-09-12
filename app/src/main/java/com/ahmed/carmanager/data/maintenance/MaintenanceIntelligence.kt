@@ -117,7 +117,15 @@ object MaintenanceAdvisor {
         }
         val forecastRemainingDays = forecastDate?.let { daysBetween(now, it) }
 
-        val overdue = remainingKm?.let { it <= 0.0 } == true || remainingDays?.let { it <= 0L } == true
+        // A due date later today must remain "due soon", not "overdue" merely because whole-day
+        // rounding produced remainingDays == 0. Compare the actual timestamp for the date side.
+        val odometerOverdue = remainingKm?.let { it <= 0.0 } == true
+        val dateOverdue = if (plan.reminderRule == ReminderRule.ODOMETER_ONLY) {
+            false
+        } else {
+            resolvedNextDate?.let { now >= it } == true
+        }
+        val overdue = odometerOverdue || dateOverdue
         val dueSoon = !overdue && (
             remainingKm?.let { it <= (plan.warningBeforeKm ?: 1_000.0) } == true ||
                 remainingDays?.let { it <= (plan.warningBeforeDays ?: 30) } == true
