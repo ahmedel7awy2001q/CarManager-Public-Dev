@@ -213,7 +213,9 @@ class ReminderWorker(
 }
 
 object ReminderScheduler {
-    private const val PERIODIC_WORK_NAME = "car-manager-reminder-check-v2"
+    // Keep the original unique work name so upgrades replace the old 12-hour schedule instead of
+    // leaving a second legacy periodic worker running beside the new six-hour schedule.
+    private const val PERIODIC_WORK_NAME = "car-manager-reminder-check"
     private const val IMMEDIATE_WORK_NAME = "car-manager-reminder-check-immediate-v2"
 
     fun schedule(context: Context) {
