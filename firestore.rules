@@ -1,0 +1,31 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function ownsUser(userId) {
+      return signedIn() && request.auth.uid == userId;
+    }
+
+    match /users/{userId} {
+      allow read, create, update, delete: if ownsUser(userId);
+
+      match /{document=**} {
+        allow read, create, update, delete: if ownsUser(userId);
+      }
+    }
+
+    // Versioned read-only vehicle knowledge catalog. Catalog publication is server/admin only.
+    match /vehicleCatalog/{document} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+
+    match /vehicleCatalogVersions/{version}/{document=**} {
+      allow read: if true;
+      allow create, update, delete: if false;
+    }
+  }
+}

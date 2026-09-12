@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">CarManager</string>
+    <string name="garage">الجراج</string>
+    <string name="current_vehicle">السيارة الحالية</string>
+    <string name="add_vehicle">إضافة سيارة</string>
+    <string name="maintenance">الصيانة</string>
+    <string name="fuel">البنزين</string>
+    <string name="trips">الرحلات</string>
+    <string name="expenses">المصاريف</string>
+    <string name="gps">GPS</string>
+    <string name="reports">التقارير</string>
+    <string name="documents">المستندات</string>
+    <string name="reminders">التنبيهات</string>
+    <string name="parts">قطع الغيار</string>
+    <string name="faults">الأعطال والإصلاحات</string>
+    <string name="archive_vehicle">أرشفة السيارة</string>
+    <string name="restore_vehicle">إعادة السيارة</string>
+    <string name="mark_sold">تسجيل بيع السيارة</string>
+</resources>
