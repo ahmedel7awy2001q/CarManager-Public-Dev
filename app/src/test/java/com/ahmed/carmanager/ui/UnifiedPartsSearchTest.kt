@@ -44,8 +44,8 @@ class UnifiedPartsSearchTest {
     }
 
     @Test
-    fun olderLoganDoesNotUseNewLoganStoreRoute() {
-        val oldLogan = logan2021.copy(year = 2013)
+    fun preNewLoganRange_doesNotUseNewLoganStoreRoute() {
+        val oldLogan = logan2021.copy(year = 2011)
         val aliases = AutoSpareUnifiedAdapter.searchAliasesForStore(oldLogan)
 
         assertFalse(aliases.any { it.contains("New Logan", ignoreCase = true) || it.contains("نيو لوجان") })
