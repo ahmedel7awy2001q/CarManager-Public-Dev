@@ -172,7 +172,7 @@ private fun ExecutiveBrandStrip(attentionCount: Int, onAttention: () -> Unit, on
         Spacer(Modifier.weight(1f))
         Column(horizontalAlignment = Alignment.End) {
             Text("CarManager", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Black)
-            Text("Premium Automotive", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            Text("تصميم احمد الحاوي", style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
         }
     }
 }
