@@ -544,6 +544,9 @@ private fun AddVehicleForm(initialType: VehicleType, onCancel: () -> Unit, onDir
             vin = state.vin
         )
     }
+    val technicalCoverage = remember(state.brand, state.model, state.year, technicalSuggestions) {
+        VehicleTechnicalCoverageEvaluator.evaluate(state.brand, state.model, state.year.toIntOrNull(), technicalSuggestions)
+    }
     val trustedMarketSuggestion = technicalSuggestions.firstOrNull { suggestion ->
         suggestion.confidence >= 90 && (suggestion.transmissionType != null || suggestion.engineCapacityCc != null || suggestion.fuelType != null)
     }
@@ -604,6 +607,7 @@ private fun AddVehicleForm(initialType: VehicleType, onCancel: () -> Unit, onDir
                 }
             }
             1 -> {
+                TechnicalCoverageBanner(technicalCoverage)
                 TechnicalSuggestionsSection(
                     suggestions = technicalSuggestions,
                     onApply = { suggestion ->
@@ -1144,7 +1148,10 @@ private fun VehicleGuidedSelector(
                                 catalogState.lastCheckedAtEpochMs?.takeIf { it > 0L }?.let { append(" • آخر تحقق ${formatDate(it)}") }
                             },
                             style = MaterialTheme.typography.labelSmall,
-                            color = if (catalogState.status == VehicleCatalogRuntimeState.Status.FAILED) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = if (
+                                catalogState.status == VehicleCatalogRuntimeState.Status.FAILED ||
+                                catalogState.message?.startsWith("تعذر تحديث") == true
+                            ) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.End
                         )
                     }
@@ -1409,6 +1416,10 @@ private fun VehicleForm(
                 vin = state.vin
             )
         }
+        val editTechnicalCoverage = remember(state.brand, state.model, state.year, editTechnicalSuggestions) {
+            VehicleTechnicalCoverageEvaluator.evaluate(state.brand, state.model, state.year.toIntOrNull(), editTechnicalSuggestions)
+        }
+        TechnicalCoverageBanner(editTechnicalCoverage, compact = true)
         TechnicalSuggestionsSection(
             suggestions = editTechnicalSuggestions,
             compact = true,
@@ -1464,6 +1475,25 @@ private fun VehicleForm(
             Button(onClick = onSave, enabled = canSave, modifier = Modifier.weight(1f).height(44.dp)) { Text(saveLabel) }
         }
         Spacer(Modifier.height(72.dp))
+    }
+}
+
+@Composable
+private fun TechnicalCoverageBanner(coverage: VehicleTechnicalCoverage, compact: Boolean = false) {
+    val colors = when (coverage.state) {
+        VehicleTechnicalCoverageState.TECHNICALLY_VERIFIED -> MaterialTheme.colorScheme.primaryContainer to MaterialTheme.colorScheme.primary
+        VehicleTechnicalCoverageState.IDENTITY_KNOWN_TECHNICAL_INCOMPLETE -> MaterialTheme.colorScheme.secondaryContainer to MaterialTheme.colorScheme.onSecondaryContainer
+        VehicleTechnicalCoverageState.UNKNOWN_IDENTITY -> MaterialTheme.colorScheme.surfaceVariant to MaterialTheme.colorScheme.onSurfaceVariant
+    }
+    Surface(
+        Modifier.fillMaxWidth().padding(bottom = if (compact) 5.dp else 8.dp),
+        shape = RoundedCornerShape(12.dp),
+        color = colors.first
+    ) {
+        Column(Modifier.padding(horizontal = 11.dp, vertical = if (compact) 7.dp else 9.dp), horizontalAlignment = Alignment.End) {
+            Text(coverage.title, fontWeight = FontWeight.Bold, color = colors.second, textAlign = TextAlign.End)
+            Text(coverage.detail, style = MaterialTheme.typography.labelSmall, color = colors.second, textAlign = TextAlign.End)
+        }
     }
 }
 

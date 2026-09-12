@@ -198,7 +198,7 @@ internal class VehicleCatalogUpdateManager(
             "network" in type || "unavailable" in detail || "timeout" in detail || "timed out" in detail -> "تعذر الوصول إلى خدمة التحديث الآن"
             else -> "تعذر التحقق من حزمة التحديث الخارجية الآن"
         }
-        return "$reason. قاعدة السيارات المدمجة تعمل بالكامل ولم تتأثر بياناتك؛ سيحاول CarManager التحديث لاحقًا."
+        return "تعذر تحديث قاعدة السيارات الآن — السبب: $reason. قاعدة السيارات المدمجة/المحفوظة ما زالت فعالة ولم تُفقد أي بيانات. استخدم التطبيق بشكل طبيعي؛ سيحاول CarManager لاحقًا ويمكنك الضغط على تحديث للمحاولة يدويًا."
     }
 
     private fun validateSnapshot(makes: List<VehicleSelectionCatalog.Make>) {
