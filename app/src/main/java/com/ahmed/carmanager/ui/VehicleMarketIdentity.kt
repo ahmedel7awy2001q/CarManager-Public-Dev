@@ -384,12 +384,16 @@ internal object VehicleMarketIdentityResolver {
             .filter { it.isNotBlank() }
             .joinToString(" ")
 
-        val curatedProfiles = (VehicleAliasKnowledgeBase.profiles(vehicle) + VehicleSelectionCatalog.catalogAliasProfiles(
-            brand = vehicle.brand,
-            model = vehicle.model,
-            year = vehicle.year,
-            generationCode = vehicle.generationCode
-        )).distinctBy { normalizeVehicleText(it.name) }.sortedByDescending { it.confidence }
+        val curatedProfiles = (
+            VehicleAliasKnowledgeBase.profiles(vehicle) +
+                VehicleSelectionCatalog.catalogAliasProfiles(
+                    brand = vehicle.brand,
+                    model = vehicle.model,
+                    year = vehicle.year,
+                    generationCode = vehicle.generationCode
+                ) +
+                StorefrontVehicleAliasCatalog.marketProfiles(vehicle)
+            ).distinctBy { normalizeVehicleText(it.name) }.sortedByDescending { it.confidence }
         val learnedByName = learnedAliasProfiles.associateBy { normalizeVehicleText(it.name) }
         val learnedProfiles = safeLearnedAliases.map { alias ->
             learnedByName[normalizeVehicleText(alias)] ?: VehicleAliasProfile(
