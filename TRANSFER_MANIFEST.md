@@ -20,7 +20,7 @@ The public-only cleanup immediately after the final product commit is:
 
 `76948d2baceaa72f78ead5253b57b8958a9fdcb1` — `[PUBLIC-ONLY] Remove temporary complete-batch tooling`
 
-This manifest refresh is itself PUBLIC-ONLY bookkeeping and must not be transferred to production. The final product head above is the authoritative endpoint for the transferable sequence.
+Manifest-refresh/checksum-correction commits are PUBLIC-ONLY bookkeeping and must not be transferred to production. The final product head above is the authoritative endpoint for the transferable sequence.
 
 ## PRODUCT commits to transfer — exact order
 
@@ -62,7 +62,8 @@ Temporary completion tooling / bookkeeping:
 6. `b6a4d7d656cf6b29091b0245d5ae8edaef61f9c2` — `[PUBLIC-ONLY] Add remaining product batch patcher`
 7. `0fb17d9333991a8445717572152f3f03acd678ee` — `[PUBLIC-ONLY] Run remaining CarManager product batch`
 8. `76948d2baceaa72f78ead5253b57b8958a9fdcb1` — `[PUBLIC-ONLY] Remove temporary complete-batch tooling`
-9. This manifest-refresh commit — `[PUBLIC-ONLY] Finalize product transfer manifest`
+9. `d2411b6052a3bb9fdcbe6cdc63cbda1b146c40aa` — `[PUBLIC-ONLY] Finalize product transfer manifest`
+10. This checksum-correction commit — `[PUBLIC-ONLY] Correct final APK checksum in manifest`
 
 The temporary complete-batch workflow and patcher were removed from the branch after successful validation.
 
@@ -163,9 +164,9 @@ The workflow generated the final three PRODUCT commits locally, validated that r
 - Artifact name: `CarManager-publicdev-complete-batch`
 - Workflow run: `34701400475`
 - Artifact ID: `10300358556`
-- Artifact ZIP digest: `sha256:e4f3b32577cfa913fef9e9ed9386df50839a74e7fe7c168690cbc17a48b98b4b`
-- Extracted APK SHA-256: `55b8833e84d702fb32eb0cd12aa8de3d5a5aab8e932aea50af1da2d60f1d79fc`
-- Extracted APK size: `26,117,973` bytes
+- Artifact ZIP digest reported by GitHub: `sha256:e4f3b32577cfa913fef9e9ed9386df50839a74e7fe7c168690cbc17a48b98b4b`
+- Extracted local APK SHA-256 (verified after download): `064e7081d50517fadde7fdacb91f5022786ae319f17b2558c34ca6bf7ea0a0b4`
+- Extracted local APK size: `26,086,425` bytes
 
 ## Remaining issues / notes
 
