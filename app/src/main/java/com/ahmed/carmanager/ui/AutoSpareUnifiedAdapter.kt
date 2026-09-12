@@ -63,10 +63,9 @@ internal object AutoSpareUnifiedAdapter {
                 .getOrNull() ?: return@forEach
 
             val categoryUrls = discoverCategoryUrls(modelHtml, route.url, cleanPart)
-            var routeOffers = mutableListOf<PartsPriceOffer>()
+            val routeOffers = mutableListOf<PartsPriceOffer>()
 
-            // The model-specific category is the strongest and fastest source when the site exposes
-            // one for the requested part family.
+            // 1) Strongest path: model-specific category exposed by the live store page.
             categoryUrls.take(2).forEach { categoryUrl ->
                 val html = runCatching { httpGet(categoryUrl) }
                     .onFailure { lastFailure = it }
@@ -79,8 +78,7 @@ internal object AutoSpareUnifiedAdapter {
                 )
             }
 
-            // A store category can be incomplete or named differently. Always fall back to the
-            // model catalog and its next page so a user typing only the part name still gets recall.
+            // 2) Model catalog fallback. Some store categories are incomplete or use another label.
             if (routeOffers.isEmpty()) {
                 for (page in 1..MAX_PAGES_PER_ROUTE) {
                     val url = withPage(route.url, page)
@@ -97,8 +95,35 @@ internal object AutoSpareUnifiedAdapter {
                 }
             }
 
+            // 3) Safe brand-category fallback. Auto Spare may list a part (notably spark plugs)
+            // only under the brand category. These results are accepted only when their title
+            // independently matches the selected vehicle identity; unrelated cars are discarded.
+            if (routeOffers.isEmpty()) {
+                brandCategoryFallbackUrls(route.url, cleanPart).take(2).forEach { categoryUrl ->
+                    val html = runCatching { httpGet(categoryUrl) }
+                        .onFailure { lastFailure = it }
+                        .getOrNull() ?: return@forEach
+                    val candidates = parseProductAnchors(
+                        html = html,
+                        pageUrl = categoryUrl,
+                        partTokens = wanted,
+                        fitmentNote = "من قسم الماركة في Auto Spare وتمت مطابقته مع السيارة المحفوظة؛ راجع OEM قبل الشراء."
+                    )
+                    routeOffers += candidates.mapNotNull { offer ->
+                        val match = identity.classifyProductTitle(offer.title)
+                        if (!identity.acceptsStrict(match)) null
+                        else offer.copy(
+                            vehicleMatch = match.level,
+                            matchedVehicleAlias = match.matchedAlias,
+                            fitmentNote = "النتيجة من قسم الماركة واجتازت فلتر هوية ${identity.canonicalName}. راجع OEM قبل الشراء."
+                        )
+                    }
+                }
+            }
+
             offers += routeOffers.map { offer ->
-                offer.copy(
+                if (offer.vehicleMatch != PartsVehicleMatch.UNKNOWN) offer
+                else offer.copy(
                     vehicleMatch = PartsVehicleMatch.VEHICLE_CATALOG,
                     matchedVehicleAlias = route.displayAlias,
                     fitmentNote = "النتيجة من كتالوج Auto Spare المرتبط تلقائيًا بسيارتك باسم ${route.displayAlias}. راجع رقم OEM والمواصفات قبل الشراء."
@@ -113,8 +138,8 @@ internal object AutoSpareUnifiedAdapter {
     }
 
     /**
-     * A synchronous safe link for the "open source" action. Known store aliases get a direct model
-     * route; unknown cars fall back to Auto Spare's brands page rather than a wrong model URL.
+     * Safe landing link for the "open source" action. Known store aliases get a direct model route;
+     * unknown cars fall back to Auto Spare's brands page rather than a wrong model URL.
      */
     fun providerLandingUrl(vehicle: VehicleEntity): String {
         val profiles = StorefrontVehicleAliasCatalog.providerProfiles(PartsPriceEngine.AUTO_SPARE_ID, vehicle)
@@ -169,12 +194,33 @@ internal object AutoSpareUnifiedAdapter {
         return result
     }
 
+    private fun categoryRouteSlugs(part: String): List<String> {
+        val p = normalize(part)
+        return when {
+            listOf("بوجيه", "شمعة", "شمعه", "موبينه", "موبينة", "كويل", "coil", "spark plug").any { p.contains(normalize(it)) } ->
+                listOf("البوجيهات والمباين", "بوجيهات")
+            listOf("تيل", "طنابير", "فرامل", "ماستر", "abs", "brake").any { p.contains(normalize(it)) } -> listOf("الفرامل")
+            listOf("فلتر", "filter").any { p.contains(normalize(it)) } -> listOf("الفلاتر-1", "الفلاتر")
+            listOf("مساعد", "مقص", "جلب", "كوبلن", "تيش", "بارات", "عفشه", "عفشة", "بطاح", "shock", "suspension").any { p.contains(normalize(it)) } -> listOf("العفشة")
+            listOf("سير", "شداد", "بلي", "كاتينه", "كاتينة", "belt", "timing").any { p.contains(normalize(it)) } -> listOf("السيور-والبلي")
+            listOf("ردياتير", "رادياتير", "ثرموستات", "طرمبه مياه", "طرمبة مياه", "تبريد", "cooling", "radiator").any { p.contains(normalize(it)) } -> listOf("دورة-تبريد-المحرك")
+            listOf("تكييف", "كمبروسر", "سربنتينه", "سربنتينة", "ac", "air condition").any { p.contains(normalize(it)) } -> listOf("دورة-التكييف")
+            listOf("فتيس", "دبرياج", "كلتش", "gearbox", "clutch", "transmission").any { p.contains(normalize(it)) } -> listOf("فتيس-ودبرياج")
+            listOf("شكمان", "عادم", "exhaust").any { p.contains(normalize(it)) } -> listOf("نظام-الشكمان")
+            else -> emptyList()
+        }
+    }
+
     private fun resolveModelRoutes(
         vehicle: VehicleEntity,
         identity: VehicleMarketIdentity
     ): List<ResolvedModelRoute> {
-        val cacheKey = listOf(vehicle.brand, vehicle.model, vehicle.year, vehicle.generationCode.orEmpty())
-            .joinToString("|") { normalize(it) }
+        val cacheKey = listOf(
+            vehicle.brand,
+            vehicle.model,
+            vehicle.year.toString(),
+            vehicle.generationCode.orEmpty()
+        ).joinToString("|") { normalize(it) }
         routeCache[cacheKey]?.takeIf { System.currentTimeMillis() - it.resolvedAt < ROUTE_CACHE_TTL_MS }
             ?.let { return it.routes }
 
@@ -202,9 +248,8 @@ internal object AutoSpareUnifiedAdapter {
     private fun directRouteCandidates(profiles: List<StorefrontVehicleAliasProfile>): List<ResolvedModelRoute> {
         val out = mutableListOf<ResolvedModelRoute>()
         profiles.forEach { profile ->
-            val brands = profile.brandAliases.sortedByDescending(::containsArabic)
-            val models = profile.modelAliases.sortedByDescending(::containsArabic)
-            // Try all preferred Arabic model labels with the preferred store brand spelling first.
+            val brands = profile.brandAliases.sortedByDescending { if (containsArabic(it)) 1 else 0 }
+            val models = profile.modelAliases.sortedByDescending { if (containsArabic(it)) 1 else 0 }
             brands.take(1).forEach { brand ->
                 models.forEachIndexed { index, model ->
                     out += ResolvedModelRoute(modelRoute(brand, model), model, profile.confidence - index)
@@ -227,7 +272,7 @@ internal object AutoSpareUnifiedAdapter {
 
         val brandLinks = extractAnchors(brandsHtml)
             .filter { (_, href) -> brandPathDepth(href) == 1 }
-            .map { (label, href) -> Triple(label, absoluteUrl("$BASE/brands", href), aliasScore(label + " " + Uri.decode(href), brandAliases)) }
+            .map { (label, href) -> Triple(label, absoluteUrl("$BASE/brands", href), aliasScore("$label ${Uri.decode(href)}", brandAliases)) }
             .filter { it.third > 0 }
             .sortedByDescending { it.third }
             .take(2)
@@ -270,7 +315,7 @@ internal object AutoSpareUnifiedAdapter {
             .map { (label, href) ->
                 val haystack = normalize("$label ${Uri.decode(href)}")
                 val score = intents.count { intent -> haystack.contains(intent) } * 30 +
-                    intents.maxOfOrNull { intent -> if (haystack.contains(intent)) intent.length else 0 }.orEmptyScore()
+                    (intents.maxOfOrNull { intent -> if (haystack.contains(intent)) intent.length else 0 } ?: 0)
                 absoluteUrl(modelUrl, href.substringBefore('?')) to score
             }
             .filter { it.second > 0 }
@@ -279,7 +324,13 @@ internal object AutoSpareUnifiedAdapter {
             .distinct()
     }
 
-    private fun Int?.orEmptyScore(): Int = this ?: 0
+    private fun brandCategoryFallbackUrls(modelUrl: String, part: String): List<String> {
+        val encodedBrand = modelUrl.substringAfter("/brands/", "").substringBefore('/').substringBefore('?')
+        if (encodedBrand.isBlank()) return emptyList()
+        return categoryRouteSlugs(part)
+            .map { slug -> "$BASE/parts/$encodedBrand/${encodePathSegment(slug)}" }
+            .distinct()
+    }
 
     private fun parseProductAnchors(
         html: String,
@@ -348,8 +399,7 @@ internal object AutoSpareUnifiedAdapter {
         return regex.findAll(html).mapNotNull { match ->
             val href = decodeHtml(match.groupValues[1]).trim()
             if (href.isBlank() || href.startsWith("#") || href.startsWith("javascript:", true)) return@mapNotNull null
-            val label = cleanLabel(htmlToText(match.groupValues[2]))
-            label to href
+            cleanLabel(htmlToText(match.groupValues[2])) to href
         }.toList()
     }
 
@@ -371,8 +421,8 @@ internal object AutoSpareUnifiedAdapter {
     }
 
     private fun tokenOverlapScore(a: String, b: String): Int {
-        val at = a.split(Regex("[^\\p{L}\\p{N}]+" )).filter { it.length >= 2 }.toSet()
-        val bt = b.split(Regex("[^\\p{L}\\p{N}]+" )).filter { it.length >= 2 }.toSet()
+        val at = a.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }.toSet()
+        val bt = b.split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }.toSet()
         if (at.isEmpty() || bt.isEmpty()) return 0
         val common = at.intersect(bt).size
         return if (common == 0) 0 else common * 22
@@ -381,9 +431,9 @@ internal object AutoSpareUnifiedAdapter {
     private fun yearCompatibilityScore(text: String, year: Int): Int {
         val ranges = Regex("(?<!\\d)((?:19|20)\\d{2})\\s*[-–—/]\\s*((?:19|20)\\d{2})(?!\\d)")
             .findAll(text)
-            .mapNotNull { m ->
-                val a = m.groupValues[1].toIntOrNull() ?: return@mapNotNull null
-                val b = m.groupValues[2].toIntOrNull() ?: return@mapNotNull null
+            .mapNotNull { match ->
+                val a = match.groupValues[1].toIntOrNull() ?: return@mapNotNull null
+                val b = match.groupValues[2].toIntOrNull() ?: return@mapNotNull null
                 minOf(a, b)..maxOf(a, b)
             }.toList()
         if (ranges.isNotEmpty()) return if (ranges.any { year in it }) 45 else -100
@@ -397,8 +447,8 @@ internal object AutoSpareUnifiedAdapter {
 
     private fun looksLikeVehicleCatalog(html: String, alias: String): Boolean {
         val normalized = normalize(htmlToText(html.take(250_000)))
-        val aliasTokens = normalize(alias).split(Regex("[^\\p{L}\\p{N}]+" )).filter { it.length >= 2 }
-        val aliasSeen = aliasTokens.isEmpty() || aliasTokens.count { normalized.contains(it) } >= min(1, aliasTokens.size)
+        val aliasTokens = normalize(alias).split(Regex("[^\\p{L}\\p{N}]+")).filter { it.length >= 2 }
+        val aliasSeen = aliasTokens.isEmpty() || aliasTokens.any { normalized.contains(it) }
         val hasCatalogLinks = html.contains("/products/", true) || html.contains("/parts/", true)
         return aliasSeen && hasCatalogLinks
     }
@@ -442,10 +492,13 @@ internal object AutoSpareUnifiedAdapter {
         if (wanted.isEmpty()) return 1
         val tokens = normalize(title).split(Regex("[^\\p{L}\\p{N}]+"))
             .map(::stripArabicArticle).filter { it.isNotBlank() }.toSet()
-        return wanted.count { w -> w in tokens || tokens.any { t -> t.contains(w) || w.contains(t) } }
+        return wanted.count { wantedToken ->
+            wantedToken in tokens || tokens.any { token -> token.contains(wantedToken) || wantedToken.contains(token) }
+        }
     }
 
-    private fun stripArabicArticle(token: String): String = if (token.startsWith("ال") && token.length > 4) token.removePrefix("ال") else token
+    private fun stripArabicArticle(token: String): String =
+        if (token.startsWith("ال") && token.length > 4) token.removePrefix("ال") else token
 
     private fun containsArabic(value: String): Boolean = value.any { it in '\u0600'..'\u06FF' }
 
@@ -467,7 +520,8 @@ internal object AutoSpareUnifiedAdapter {
         }
     }
 
-    private fun cleanLabel(value: String): String = value.replace(Regex("\\s+"), " ").trim().removePrefix("Image:").trim()
+    private fun cleanLabel(value: String): String =
+        value.replace(Regex("\\s+"), " ").trim().removePrefix("Image:").trim()
 
     private fun htmlToText(html: String): String = decodeHtml(
         html.replace(Regex("(?is)<script[^>]*>.*?</script>"), " ")
@@ -482,12 +536,17 @@ internal object AutoSpareUnifiedAdapter {
             .replace("&nbsp;", " ").replace("&#160;", " ").replace("&amp;", "&")
             .replace("&quot;", "\"").replace("&#39;", "'").replace("&apos;", "'")
             .replace("&lt;", "<").replace("&gt;", ">")
-        out = Regex("&#(\\d+);").replace(out) { m -> m.groupValues[1].toIntOrNull()?.let { runCatching { it.toChar().toString() }.getOrDefault(m.value) } ?: m.value }
-        out = Regex("&#x([0-9a-fA-F]+);").replace(out) { m -> m.groupValues[1].toIntOrNull(16)?.let { runCatching { it.toChar().toString() }.getOrDefault(m.value) } ?: m.value }
+        out = Regex("&#(\\d+);").replace(out) { match ->
+            match.groupValues[1].toIntOrNull()?.let { code -> runCatching { code.toChar().toString() }.getOrDefault(match.value) } ?: match.value
+        }
+        out = Regex("&#x([0-9a-fA-F]+);").replace(out) { match ->
+            match.groupValues[1].toIntOrNull(16)?.let { code -> runCatching { code.toChar().toString() }.getOrDefault(match.value) } ?: match.value
+        }
         return out
     }
 
-    private fun looksPaginated(html: String): Boolean = html.contains("page=2", true) || html.contains("التالي", true)
+    private fun looksPaginated(html: String): Boolean =
+        html.contains("page=2", true) || html.contains("التالي", true)
 
     private fun httpGet(url: String): String {
         val connection = (URL(url).openConnection() as HttpURLConnection).apply {
