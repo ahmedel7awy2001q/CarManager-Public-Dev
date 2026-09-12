@@ -65,7 +65,7 @@ internal fun CarManagerScreenHost(
             viewModel = viewModel
         )
         else -> when (section) {
-            MainSection.HOME -> HomeDestination(selectedVehicle, vehicles.size, viewModel, actions)
+            MainSection.HOME -> HomeDestination(selectedVehicle, vehicles.count(VehicleLifecyclePolicy::isOperational), viewModel, actions)
             MainSection.MAINTENANCE -> MaintenanceDestination(selectedVehicle, viewModel)
             MainSection.REPORTS -> TripsDestination(selectedVehicle, viewModel)
             MainSection.MORE -> SettingsHubV090Screen(
@@ -350,7 +350,7 @@ private fun MoreDestinationContent(
         }
         MoreDestination.PARTS -> PartsDestination(
             vehicle = selectedVehicle,
-            vehicles = vehicles,
+            vehicles = vehicles.filter(VehicleLifecyclePolicy::isOperational),
             viewModel = viewModel
         )
         MoreDestination.TIRES_BATTERY -> {
@@ -380,7 +380,8 @@ private fun MoreDestinationContent(
             onMakePrimary = viewModel::makePrimary,
             onArchive = viewModel::archive,
             onRestore = viewModel::restore,
-            onSold = viewModel::markSold
+            onSold = viewModel::markSold,
+            onSoftDelete = viewModel::softDeleteVehicle
         )
     }
 }

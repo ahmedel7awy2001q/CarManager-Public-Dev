@@ -56,7 +56,8 @@ fun GarageScreen(
     onMakePrimary: (String) -> Unit,
     onArchive: (String) -> Unit,
     onRestore: (String) -> Unit,
-    onSold: (String, Double, Double?) -> Unit
+    onSold: (String, Double, Double?) -> Unit,
+    onSoftDelete: (String) -> Unit
 ) {
     var showTypeChooser by remember { mutableStateOf(false) }
     var addVehicleType by remember { mutableStateOf<VehicleType?>(null) }
@@ -65,26 +66,39 @@ fun GarageScreen(
     var editVehicle by remember { mutableStateOf<VehicleEntity?>(null) }
     var editVehicleDirty by remember { mutableStateOf(false) }
     var confirmDiscardEdit by remember { mutableStateOf(false) }
+    var showHistory by remember { mutableStateOf(false) }
     var query by remember { mutableStateOf("") }
-    val filteredVehicles = remember(vehicles, query) {
+    val operationalVehicles = remember(vehicles) { VehicleLifecyclePolicy.operational(vehicles) }
+    val historicalVehicles = remember(vehicles) { VehicleLifecyclePolicy.historical(vehicles) }
+    val filteredVehicles = remember(operationalVehicles, query) {
         val q = query.trim().lowercase()
-        if (q.isBlank()) vehicles else vehicles.filter { vehicle ->
+        if (q.isBlank()) operationalVehicles else operationalVehicles.filter { vehicle ->
             listOf(vehicle.displayName, vehicle.brand, vehicle.model, vehicle.plateNumber, vehicle.vin, vehicle.year.toString())
                 .filterNotNull().joinToString(" ").lowercase().contains(q)
         }
     }
 
     Box(Modifier.fillMaxSize()) {
-        if (vehicles.isEmpty()) {
-            EmptyGarageState(onAdd = { showTypeChooser = true })
+        if (operationalVehicles.isEmpty()) {
+            Column(Modifier.fillMaxSize()) {
+                if (historicalVehicles.isNotEmpty()) {
+                    GarageHistoryAccessCard(
+                        count = historicalVehicles.size,
+                        onClick = { showHistory = true },
+                        modifier = Modifier.padding(horizontal = CMPremium.ScreenPadding, vertical = 10.dp)
+                    )
+                }
+                Box(Modifier.weight(1f).fillMaxWidth()) { EmptyGarageState(onAdd = { showTypeChooser = true }) }
+            }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
                 contentPadding = PaddingValues(CMPremium.ScreenPadding, 10.dp, CMPremium.ScreenPadding, 96.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                item {
-                    GarageCockpitHeader(vehicles.size)
+                item { GarageCockpitHeader(operationalVehicles.size) }
+                if (historicalVehicles.isNotEmpty()) {
+                    item { GarageHistoryAccessCard(count = historicalVehicles.size, onClick = { showHistory = true }) }
                 }
                 item {
                     OutlinedTextField(
@@ -114,7 +128,6 @@ fun GarageScreen(
                     )
                 }
             }
-
             ExtendedFloatingActionButton(
                 onClick = { showTypeChooser = true },
                 modifier = Modifier.align(Alignment.BottomStart).padding(14.dp),
@@ -139,19 +152,21 @@ fun GarageScreen(
     }
 
     addVehicleType?.let { type ->
+        val currentAddDirty by rememberUpdatedState(addVehicleDirty)
+        val addSheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { target -> target != SheetValue.Hidden || !currentAddDirty }
+        )
         BackHandler(enabled = !confirmDiscardAdd) {
             if (addVehicleDirty) confirmDiscardAdd = true else addVehicleType = null
         }
         ModalBottomSheet(
-            onDismissRequest = {
-                if (addVehicleDirty) confirmDiscardAdd = true else addVehicleType = null
-            }
+            onDismissRequest = { if (addVehicleDirty) confirmDiscardAdd = true else addVehicleType = null },
+            sheetState = addSheetState
         ) {
             AddVehicleForm(
                 initialType = type,
-                onCancel = {
-                    if (addVehicleDirty) confirmDiscardAdd = true else addVehicleType = null
-                },
+                onCancel = { if (addVehicleDirty) confirmDiscardAdd = true else addVehicleType = null },
                 onDirtyChange = { addVehicleDirty = it },
                 onSave = {
                     addVehicleDirty = false
@@ -182,19 +197,21 @@ fun GarageScreen(
     }
 
     editVehicle?.let { vehicle ->
+        val currentEditDirty by rememberUpdatedState(editVehicleDirty)
+        val editSheetState = rememberModalBottomSheetState(
+            skipPartiallyExpanded = true,
+            confirmValueChange = { target -> target != SheetValue.Hidden || !currentEditDirty }
+        )
         BackHandler(enabled = !confirmDiscardEdit) {
             if (editVehicleDirty) confirmDiscardEdit = true else editVehicle = null
         }
         ModalBottomSheet(
-            onDismissRequest = {
-                if (editVehicleDirty) confirmDiscardEdit = true else editVehicle = null
-            }
+            onDismissRequest = { if (editVehicleDirty) confirmDiscardEdit = true else editVehicle = null },
+            sheetState = editSheetState
         ) {
             EditVehicleForm(
                 vehicle = vehicle,
-                onCancel = {
-                    if (editVehicleDirty) confirmDiscardEdit = true else editVehicle = null
-                },
+                onCancel = { if (editVehicleDirty) confirmDiscardEdit = true else editVehicle = null },
                 onDirtyChange = { editVehicleDirty = it },
                 onSave = {
                     editVehicleDirty = false
@@ -203,6 +220,15 @@ fun GarageScreen(
                 }
             )
         }
+    }
+
+    if (showHistory) {
+        GarageHistorySheet(
+            vehicles = historicalVehicles,
+            onRestore = onRestore,
+            onSoftDelete = onSoftDelete,
+            onDismiss = { showHistory = false }
+        )
     }
 
     if (confirmDiscardEdit && editVehicle != null) {

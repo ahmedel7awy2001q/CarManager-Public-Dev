@@ -201,6 +201,20 @@ class RoomVehicleRepository(
         }
     }
 
+    override suspend fun softDelete(vehicleId: String): VehicleRepositoryResult<Unit> = safeOperation {
+        val uid = authRepository.currentUid() ?: return@safeOperation VehicleRepositoryResult.Error("سجّل الدخول أولًا.")
+        database.withTransaction {
+            val vehicle = vehicleDao.getById(vehicleId, uid)
+                ?: return@withTransaction VehicleRepositoryResult.Error("المركبة غير موجودة في هذا الحساب.")
+            if (vehicle.status != VehicleStatus.SOLD && vehicle.status != VehicleStatus.ARCHIVED) {
+                return@withTransaction VehicleRepositoryResult.Error("انقل المركبة إلى الأرشيف أو سجّل البيع أولًا قبل إزالتها من القائمة.")
+            }
+            vehicleDao.softDelete(vehicleId, uid)
+            promoteFallbackIfNeeded(uid)
+            VehicleRepositoryResult.Success(Unit)
+        }
+    }
+
     override suspend fun saveInspectionTemplateConfig(vehicleId: String, config: String?): VehicleRepositoryResult<Unit> = safeOperation {
         val uid = authRepository.currentUid() ?: return@safeOperation VehicleRepositoryResult.Error("سجّل الدخول أولًا.")
         val vehicle = vehicleDao.getById(vehicleId, uid)

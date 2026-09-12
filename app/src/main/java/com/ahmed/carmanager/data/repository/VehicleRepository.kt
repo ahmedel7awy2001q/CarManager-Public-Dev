@@ -106,5 +106,6 @@ interface VehicleRepository {
     suspend fun archive(vehicleId: String): VehicleRepositoryResult<Unit>
     suspend fun restore(vehicleId: String): VehicleRepositoryResult<Unit>
     suspend fun markSold(request: SellVehicleRequest): VehicleRepositoryResult<Unit>
+    suspend fun softDelete(vehicleId: String): VehicleRepositoryResult<Unit>
     suspend fun saveInspectionTemplateConfig(vehicleId: String, config: String?): VehicleRepositoryResult<Unit>
 }

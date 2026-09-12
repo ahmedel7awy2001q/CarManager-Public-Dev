@@ -49,6 +49,12 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
     val hasUnclaimedVehicles = _hasUnclaimedVehicles.asStateFlow()
 
     val vehicles = vehiclesRepo.observeVehicles().stateIn(viewModelScope, coreSharing, emptyList())
+    val operationalVehicles = vehicles
+        .map(VehicleLifecyclePolicy::operational)
+        .stateIn(viewModelScope, coreSharing, emptyList())
+    val historicalVehicles = vehicles
+        .map(VehicleLifecyclePolicy::historical)
+        .stateIn(viewModelScope, coreSharing, emptyList())
 
     init {
         // Keep the spare-parts market identity in sync as soon as a vehicle is saved/edited.
@@ -56,7 +62,7 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
         // odometer/photo/status changes do not rewrite aliases or re-resolve the market identity.
         viewModelScope.launch {
             vehicles.collect { list ->
-                list.filter { !it.isDeleted }.forEach { vehicle ->
+                list.filter(VehicleLifecyclePolicy::isOperational).forEach { vehicle ->
                     VehicleMarketProfileStore.sync(app, vehicle)
                 }
             }
@@ -66,10 +72,10 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
     private val _selectedVehicleId = MutableStateFlow<String?>(null)
     val selectedVehicleId = _selectedVehicleId.asStateFlow()
 
-    val selectedVehicle: StateFlow<VehicleEntity?> = combine(vehicles, _selectedVehicleId) { list, id ->
+    val selectedVehicle: StateFlow<VehicleEntity?> = combine(operationalVehicles, _selectedVehicleId) { list, id ->
         list.firstOrNull { it.vehicleId == id }
             ?: list.firstOrNull { it.isPrimary }
-            ?: list.firstOrNull { it.status == VehicleStatus.ACTIVE || it.status == VehicleStatus.SECONDARY }
+            ?: list.firstOrNull()
     }.stateIn(viewModelScope, coreSharing, null)
 
     private fun <T> selectedFlow(block: (String) -> Flow<List<T>>): Flow<List<T>> =
@@ -104,7 +110,7 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
             )
 
     val vehicleContextDecision = combine(
-        vehicles,
+        operationalVehicles,
         androidAutoConnected,
         container.vehicleContextStore.androidAutoVehicleIdFlow,
         container.trackerDeviceIdentityStore.roleFlow,
@@ -158,7 +164,7 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
 
     init {
         viewModelScope.launch {
-            vehicles.collect { list ->
+            operationalVehicles.collect { list ->
                 val current = _selectedVehicleId.value
                 if (current == null || list.none { it.vehicleId == current }) {
                     _selectedVehicleId.value = list.firstOrNull { it.isPrimary }?.vehicleId ?: list.firstOrNull()?.vehicleId
@@ -382,6 +388,7 @@ class CarManagerViewModel(application: Application) : AndroidViewModel(applicati
     fun archive(vehicleId: String) = launchOperation { vehiclesRepo.archive(vehicleId) }
     fun restore(vehicleId: String) = launchOperation { vehiclesRepo.restore(vehicleId) }
     fun markSold(vehicleId: String, odometerKm: Double, salePrice: Double?) = launchOperation { vehiclesRepo.markSold(SellVehicleRequest(vehicleId, odometerKm, salePrice)) }
+    fun softDeleteVehicle(vehicleId: String) = launchOperation { vehiclesRepo.softDelete(vehicleId) }
     fun saveInspectionTemplateConfig(config: String?) = withVehicle { vehiclesRepo.saveInspectionTemplateConfig(it, config) }
 
     fun setOdometer(value: Double) = withVehicle { repo.setOdometer(it, value) }
