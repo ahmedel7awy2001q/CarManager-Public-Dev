@@ -66,5 +66,15 @@ class UnifiedPartsSearchTest {
 
         assertFalse(identity.classifyProductTitle("بوجيه ايريديوم جيب جراند شيروكي 2016-2024").accepted)
         assertFalse(identity.classifyProductTitle("بوجيه هوندا اكورد 2018").accepted)
+        assertTrue(ForeignVehicleTitleGuard.isClearlyForeign(logan2021, identity, "بوجيه ايريديوم جيب جراند شيروكي 2016-2024"))
+        assertTrue(ForeignVehicleTitleGuard.isClearlyForeign(logan2021, identity, "بوجيه هوندا اكورد 2018"))
+    }
+
+    @Test
+    fun genericPartTitleIsKeptForLowConfidenceDiscovery() {
+        val identity = VehicleMarketIdentityResolver.resolve(logan2021)
+
+        assertFalse(ForeignVehicleTitleGuard.isClearlyForeign(logan2021, identity, "NGK Standard spark plug BKR6ES"))
+        assertFalse(ForeignVehicleTitleGuard.isClearlyForeign(logan2021, identity, "طقم بوجيهات رينو نيو لوجان"))
     }
 }
