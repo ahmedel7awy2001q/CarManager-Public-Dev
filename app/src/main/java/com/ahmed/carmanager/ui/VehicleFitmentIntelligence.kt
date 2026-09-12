@@ -90,6 +90,10 @@ internal object VehicleAliasKnowledgeBase {
             if (y >= 2020) add("Corolla E210", VehicleAliasRelation.GENERATION_CODE, "Global", 2018..2027)
         }
 
+        // Storefront-specific labels are kept outside Room and feed the same identity graph used by
+        // every provider. This lets one saved car search all stores with their own local naming.
+        out += StorefrontVehicleAliasCatalog.marketProfiles(vehicle)
+
         // The saved make/model is the authoritative user identity for storefront discovery. A
         // display name can be a nickname ("العربية", "سيارتي"...), so keep it as a useful alias
         // but never let it outrank the actual make/model or a verified generation code.
